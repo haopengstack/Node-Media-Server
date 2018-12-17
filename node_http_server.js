@@ -1,21 +1,22 @@
 //
 //  Created by Mingliang Chen on 17/8/1.
 //  illuspas[a]gmail.com
-//  Copyright (c) 2017 Nodemedia. All rights reserved.
+//  Copyright (c) 2018 Nodemedia. All rights reserved.
 //
+
 
 const Fs = require('fs');
 const Http = require('http');
 const Https = require('https');
 const WebSocket = require('ws');
 const Express = require('express');
-const NodeCoreUtils = require('./node_core_utils');
+const basicAuth = require('basic-auth-connect');
 const NodeFlvSession = require('./node_flv_session');
 const HTTP_PORT = 80;
 const HTTPS_PORT = 443;
 const HTTP_WEBROOT = './public';
 const HTTP_MEDIAROOT = './media';
-
+const Logger = require('./node_core_logger');
 const context = require('./node_core_ctx');
 
 const streamsRoute = require('./api/routes/streams');
@@ -29,7 +30,7 @@ class NodeHttpServer {
     this.config = config;
 
     let app = Express();
-    
+
     app.all(['*.m3u8', '*.ts', '*.mpd', '*.m4s', '*.mp4'], (req, res, next) => {
       res.setHeader('Access-Control-Allow-Origin', this.config.http.allow_origin);
       next();
@@ -56,6 +57,9 @@ class NodeHttpServer {
     app.use(Express.static(this.webroot));
     app.use(Express.static(this.mediaroot));
 
+    if (this.config.auth && this.config.auth.api) {
+      app.use('/api/*', basicAuth(this.config.auth.api_user, this.config.auth.api_pass));
+    }
     app.use('/api/streams', streamsRoute(context));
     app.use('/api/server', serverRoute(context));
 
@@ -78,15 +82,15 @@ class NodeHttpServer {
 
   run() {
     this.httpServer.listen(this.port, () => {
-      console.log(`Node Media Http Server started on port: ${this.port}`);
+      Logger.log(`Node Media Http Server started on port: ${this.port}`);
     });
 
     this.httpServer.on('error', (e) => {
-      console.error(`Node Media Http Server ${e}`);
+      Logger.error(`Node Media Http Server ${e}`);
     });
 
     this.httpServer.on('close', () => {
-      console.log('Node Media Http Server Close.');
+      Logger.log('Node Media Http Server Close.');
     });
 
     this.wsServer = new WebSocket.Server({ server: this.httpServer });
@@ -97,23 +101,23 @@ class NodeHttpServer {
     });
 
     this.wsServer.on('listening', () => {
-      console.log(`Node Media WebSocket Server started on port: ${this.port}`);
+      Logger.log(`Node Media WebSocket Server started on port: ${this.port}`);
     });
     this.wsServer.on('error', (e) => {
-      console.error(`Node Media WebSocket Server ${e}`);
+      Logger.error(`Node Media WebSocket Server ${e}`);
     });
 
     if (this.httpsServer) {
       this.httpsServer.listen(this.sport, () => {
-        console.log(`Node Media Https Server started on port: ${this.sport}`);
+        Logger.log(`Node Media Https Server started on port: ${this.sport}`);
       });
 
       this.httpsServer.on('error', (e) => {
-        console.error(`Node Media Https Server ${e}`);
+        Logger.error(`Node Media Https Server ${e}`);
       });
 
       this.httpsServer.on('close', () => {
-        console.log('Node Media Https Server Close.');
+        Logger.log('Node Media Https Server Close.');
       });
 
       this.wssServer = new WebSocket.Server({ server: this.httpsServer });
@@ -124,10 +128,10 @@ class NodeHttpServer {
       });
 
       this.wssServer.on('listening', () => {
-        console.log(`Node Media WebSocketSecure Server started on port: ${this.sport}`);
+        Logger.log(`Node Media WebSocketSecure Server started on port: ${this.sport}`);
       });
       this.wssServer.on('error', (e) => {
-        console.error(`Node Media WebSocketSecure Server ${e}`);
+        Logger.error(`Node Media WebSocketSecure Server ${e}`);
       });
     }
 

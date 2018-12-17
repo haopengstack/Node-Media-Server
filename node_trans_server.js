@@ -3,25 +3,41 @@
 //  illuspas[a]gmail.com
 //  Copyright (c) 2018 Nodemedia. All rights reserved.
 //
+const Logger = require('./node_core_logger');
 
 const NodeTransSession = require('./node_trans_session');
 const context = require('./node_core_ctx');
+const { getFFmpegVersion, getFFmpegUrl } = require('./node_core_utils');
 const fs = require('fs');
 const _ = require('lodash');
 const mkdirp = require('mkdirp');
 
 class NodeTransServer {
-  constructor(config) {
+  constructor(config) {   
     this.config = config;
     this.transSessions = new Map();
   }
 
-  run() {
+  async run() {
     try {
-      mkdirp(this.config.http.mediaroot);
+      mkdirp.sync(this.config.http.mediaroot);
       fs.accessSync(this.config.http.mediaroot, fs.constants.W_OK);
     } catch (error) {
-      console.error(`Node Media Trans Server startup failed. MediaRoot:${this.config.http.mediaroot} cannot be written.`);
+      Logger.error(`Node Media Trans Server startup failed. MediaRoot:${this.config.http.mediaroot} cannot be written.`);
+      return;
+    }
+
+    try {
+      fs.accessSync(this.config.trans.ffmpeg, fs.constants.X_OK);
+    } catch (error) {
+      Logger.error(`Node Media Trans Server startup failed. ffmpeg:${this.config.trans.ffmpeg} cannot be executed.`);
+      return;
+    }
+
+    let version = await getFFmpegVersion(this.config.trans.ffmpeg);
+    if (version === '' || parseInt(version.split('.')[0]) < 4) {
+      Logger.error(`Node Media Trans Server startup failed. ffmpeg requires version 4.0.0 above`);
+      Logger.error('Download the latest ffmpeg static program:', getFFmpegUrl());
       return;
     }
 
@@ -31,10 +47,9 @@ class NodeTransServer {
       apps += this.config.trans.tasks[i].app;
       apps += ' ';
     }
-    console.log(`Node Media Trans Server started for apps: [ ${apps}] , MediaRoot: ${this.config.http.mediaroot}`);
-
     context.nodeEvent.on('postPublish', this.onPostPublish.bind(this));
     context.nodeEvent.on('donePublish', this.onDonePublish.bind(this));
+    Logger.log(`Node Media Trans Server started for apps: [ ${apps}] , MediaRoot: ${this.config.http.mediaroot}, ffmpeg version: ${version}`);
   }
 
   onPostPublish(id, streamPath, args) {

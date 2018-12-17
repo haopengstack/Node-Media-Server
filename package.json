@@ -1,8 +1,8 @@
 {
   "name": "node-media-server",
-  "version": "1.2.3",
+  "version": "1.4.8",
   "description": "A Node.js implementation of RTMP Server",
-  "main": "node_media_server.js",
+  "main": "index.js",
   "scripts": {
     "test": "node app.js"
   },
@@ -22,13 +22,15 @@
   },
   "homepage": "https://github.com/illuspas/Node-Media-Server#readme",
   "dependencies": {
+    "basic-auth-connect": "^1.0.0",
+    "chalk": "^2.4.1",
     "dateformat": "^3.0.3",
-    "express": "^4.15.4",
-    "lodash": "^4.17.4",
+    "express": "^4.16.3",
+    "lodash": "^4.17.10",
     "mkdirp": "^0.5.1",
-    "ws": "^3.1.0"
+    "ws": "^5.1.1"
   },
   "engines": {
-    "node": ">=6.0.0"
+    "node": ">=8.0.0"
   }
 }

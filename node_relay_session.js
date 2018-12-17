@@ -3,12 +3,12 @@
 //  illuspas[a]gmail.com
 //  Copyright (c) 2018 Nodemedia. All rights reserved.
 //
+const Logger = require('./node_core_logger');
 
 const EventEmitter = require('events');
 const { spawn } = require('child_process');
-const dateFormat = require('dateformat');
-const mkdirp = require('mkdirp');
-const fs = require('fs');
+
+const RTSP_TRANSPORT = ['udp', 'tcp', 'udp_multicast', 'http'];
 
 class NodeRelaySession extends EventEmitter {
   constructor(conf) {
@@ -17,34 +17,42 @@ class NodeRelaySession extends EventEmitter {
   }
 
   run() {
-
-    let argv = ['-analyzeduration', '1000000', '-i', this.conf.inPath, '-c', 'copy', '-f', 'flv', this.conf.ouPath];
+    let argv = ['-fflags', 'nobuffer', '-analyzeduration', '1000000', '-i', this.conf.inPath, '-c', 'copy', '-f', 'flv', this.conf.ouPath];
     if (this.conf.inPath[0] === '/' || this.conf.inPath[1] === ':') {
+      argv.unshift('-1');
+      argv.unshift('-stream_loop');
       argv.unshift('-re');
     }
-    // console.log(argv.toString());
+
+    if (this.conf.inPath.startsWith('rtsp://') && this.conf.rtsp_transport) {
+      if (RTSP_TRANSPORT.indexOf(this.conf.rtsp_transport) > -1) {
+        argv.unshift(this.conf.rtsp_transport);
+        argv.unshift('-rtsp_transport');
+      }
+    }
+
+    Logger.ffdebug(argv.toString());
     this.ffmpeg_exec = spawn(this.conf.ffmpeg, argv);
     this.ffmpeg_exec.on('error', (e) => {
-      // console.log(e);
+      Logger.ffdebug(e);
     });
 
     this.ffmpeg_exec.stdout.on('data', (data) => {
-      // console.log(`输出：${data}`);
+      Logger.ffdebug(`FF输出：${data}`);
     });
 
     this.ffmpeg_exec.stderr.on('data', (data) => {
-      // console.log(`错误：${data}`);
+      Logger.ffdebug(`FF输出：${data}`);
     });
 
     this.ffmpeg_exec.on('close', (code) => {
-      console.log('[Relay end] id=',this.id);
+      Logger.log('[Relay end] id=', this.id);
       this.emit('end', this.id);
     });
   }
 
   end() {
-    // this.ffmpeg_exec.kill('SIGINT');
-    this.ffmpeg_exec.stdin.write('q');
+    this.ffmpeg_exec.kill('SIGKILL');
   }
 }
 

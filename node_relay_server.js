@@ -3,10 +3,12 @@
 //  illuspas[a]gmail.com
 //  Copyright (c) 2018 Nodemedia. All rights reserved.
 //
+const Logger = require('./node_core_logger');
 
 const NodeCoreUtils = require('./node_core_utils');
 const NodeRelaySession = require('./node_relay_session');
 const context = require('./node_core_ctx');
+const { getFFmpegVersion, getFFmpegUrl } = require('./node_core_utils');
 const fs = require('fs');
 const _ = require('lodash');
 
@@ -19,13 +21,27 @@ class NodeRelayServer {
 
   }
 
-  run() {
+  async run() {
+    try {
+      fs.accessSync(this.config.relay.ffmpeg, fs.constants.X_OK);
+    } catch (error) {
+      Logger.error(`Node Media Relay Server startup failed. ffmpeg:${this.config.relay.ffmpeg} cannot be executed.`);
+      return;
+    }
+
+    let version = await getFFmpegVersion(this.config.relay.ffmpeg);
+    if (version === '' || parseInt(version.split('.')[0]) < 4) {
+      Logger.error(`Node Media Relay Server startup failed. ffmpeg requires version 4.0.0 above`);
+      Logger.error('Download the latest ffmpeg static program:', getFFmpegUrl());
+      return;
+    }
+
     context.nodeEvent.on('prePlay', this.onPrePlay.bind(this));
     context.nodeEvent.on('donePlay', this.onDonePlay.bind(this));
     context.nodeEvent.on('postPublish', this.onPostPublish.bind(this));
     context.nodeEvent.on('donePublish', this.onDonePublish.bind(this));
     this.staticCycle = setInterval(this.onStatic.bind(this), 1000);
-    console.log(`Node Media Relay Server started`);
+    Logger.log(`Node Media Relay Server started`);
   }
 
   onStatic() {
@@ -41,15 +57,16 @@ class NodeRelayServer {
         conf.name = conf.name ? conf.name : NodeCoreUtils.genRandomName();
         conf.ffmpeg = this.config.relay.ffmpeg;
         conf.inPath = conf.edge;
-        conf.ouPath = `rtmp://localhost:${this.config.rtmp.port}/${conf.app}/${conf.name}`;
+        conf.ouPath = `rtmp://127.0.0.1:${this.config.rtmp.port}/${conf.app}/${conf.name}`;
         let session = new NodeRelaySession(conf);
         session.id = i;
+        session.streamPath = `/${conf.app}/${conf.name}`;
         session.on('end', (id) => {
           this.staticSessions.delete(id);
         });
         this.staticSessions.set(i, session);
         session.run();
-        console.log('[Relay static pull] start', i, conf.inPath, ' to ', conf.ouPath);
+        Logger.log('[Relay static pull] start', i, conf.inPath, ' to ', conf.ouPath);
       }
     }
   }
@@ -65,7 +82,7 @@ class NodeRelayServer {
         let hasApp = conf.edge.match(/rtmp:\/\/([^\/]+)\/([^\/]+)/);
         conf.ffmpeg = this.config.relay.ffmpeg;
         conf.inPath = hasApp ? `${conf.edge}/${stream}` : `${conf.edge}/${streamPath}`;
-        conf.ouPath = `rtmp://localhost:${this.config.rtmp.port}/${streamPath}`;
+        conf.ouPath = `rtmp://127.0.0.1:${this.config.rtmp.port}/${streamPath}`;
         let session = new NodeRelaySession(conf);
         session.id = id;
         session.on('end', (id) => {
@@ -73,7 +90,7 @@ class NodeRelayServer {
         });
         this.dynamicSessions.set(id, session);
         session.run();
-        console.log('[Relay dynamic pull] start', id, conf.inPath, ' to ', conf.ouPath);
+        Logger.log('[Relay dynamic pull] start', id, conf.inPath, ' to ', conf.ouPath);
       }
     }
   }
@@ -96,7 +113,7 @@ class NodeRelayServer {
       if (isPush && app === conf.app) {
         let hasApp = conf.edge.match(/rtmp:\/\/([^\/]+)\/([^\/]+)/);
         conf.ffmpeg = this.config.relay.ffmpeg;
-        conf.inPath = `rtmp://localhost:${this.config.rtmp.port}/${streamPath}`;
+        conf.inPath = `rtmp://127.0.0.1:${this.config.rtmp.port}/${streamPath}`;
         conf.ouPath = hasApp ? `${conf.edge}/${stream}` : `${conf.edge}/${streamPath}`;
         let session = new NodeRelaySession(conf);
         session.id = id;
@@ -105,7 +122,7 @@ class NodeRelayServer {
         });
         this.dynamicSessions.set(id, session);
         session.run();
-        console.log('[Relay dynamic push] start', id, conf.inPath, ' to ', conf.ouPath);
+        Logger.log('[Relay dynamic push] start', id, conf.inPath, ' to ', conf.ouPath);
       }
     }
 
@@ -115,6 +132,12 @@ class NodeRelayServer {
     let session = this.dynamicSessions.get(id);
     if (session) {
       session.end();
+    }
+
+    for (session of this.staticSessions.values()) {
+      if (session.streamPath === streamPath) {
+        session.end();
+      }
     }
   }
 

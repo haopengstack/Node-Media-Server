@@ -1,8 +1,10 @@
 //
 //  Created by Mingliang Chen on 17/8/1.
 //  illuspas[a]gmail.com
-//  Copyright (c) 2017 Nodemedia. All rights reserved.
+//  Copyright (c) 2018 Nodemedia. All rights reserved.
 //
+const Logger = require('./node_core_logger');
+
 const Net = require('net');
 const NodeRtmpSession = require('./node_rtmp_session');
 const NodeCoreUtils = require('./node_core_utils');
@@ -22,15 +24,15 @@ class NodeRtmpServer {
 
   run() {
     this.tcpServer.listen(this.port, () => {
-      console.log(`Node Media Rtmp Server started on port: ${this.port}`);
+      Logger.log(`Node Media Rtmp Server started on port: ${this.port}`);
     });
 
     this.tcpServer.on('error', (e) => {
-      console.error(`Node Media Rtmp Server ${e}`);
+      Logger.error(`Node Media Rtmp Server ${e}`);
     });
 
     this.tcpServer.on('close', () => {
-      console.log('Node Media Rtmp Server Close.');
+      Logger.log('Node Media Rtmp Server Close.');
     });
   }
 

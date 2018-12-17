@@ -1,12 +1,18 @@
 # Node-Media-Server
+[![npm](https://img.shields.io/node/v/node-media-server.svg)](https://nodejs.org/en/)
 [![npm](https://img.shields.io/npm/v/node-media-server.svg)](https://npmjs.org/package/node-media-server)
 [![npm](https://img.shields.io/npm/dm/node-media-server.svg)](https://npmjs.org/package/node-media-server)
 [![npm](https://img.shields.io/npm/l/node-media-server.svg)](LICENSE)
+[![Join the chat at https://gitter.im/Illuspas/Node-Media-Server](https://badges.gitter.im/Illuspas/Node-Media-Server.svg)](https://gitter.im/Illuspas/Node-Media-Server?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
+![logo](https://www.nodemedia.cn/uploads/site_logo.png)
 
 一个 Node.js 实现的RTMP/HTTP/WebSocket/HLS/DASH流媒体服务器
 
+## 微信赞赏码
+![zan](https://nodemedia.oss-cn-hangzhou.aliyuncs.com/1531102579211.jpg)
+
 # 特性
- - 基于 ES6 Generator 实现的高性能RTMP协议解析器
  - 跨平台支持 Windows/Linux/Unix
  - 支持的音视频编码 H.264/H.265/AAC/SPEEX/NELLYMOSER
  - 支持缓存最近一个关键帧间隔数据，实现RTMP协议秒开
@@ -19,14 +25,45 @@
  - 支持RTMP直播流转HLS,DASH直播流
  - 支持RTMP直播流录制为MP4文件并开启faststart
  - 支持RTMP/RTSP中继
- 
+ - 支持多核集群模式
+
+# Todo 
+- [x] 支持录制为MP4回放
+- [x] 支持实时转码
+- [x] 支持多核模式
+- [x] 支持低延迟HLS/DASH
+- [x] 支持服务器和流媒体信息统计
+- [ ] 服务器和流媒体信息统计的前端样式
+- [x] on_connect/on_publish/on_play/on_done 事件回调
+- [ ] 多分辨率转码
+- [ ] 硬件加速转码
+- [X] Rtmp/Rtsp 中继
+- [ ] 管理面板
+- [ ] 不依赖ffmpeg的零延迟rtmp/rtsp中继 
+
 # 用法 
+## git 版本
 ```bash
+mkdir nms
+cd nms
+git clone https://github.com/illuspas/Node-Media-Server
+npm i
+node app.js
+```
+>使用多核模式运行
+```
+node cluster.js
+```
+## npm 版本(推荐)
+### 单核模式
+```bash
+mkdir nms
+cd nms
 npm install node-media-server
 ```
 
 ```js
-const NodeMediaServer = require('node-media-server');
+const { NodeMediaServer } = require('node-media-server');
 
 const config = {
   rtmp: {
@@ -44,21 +81,38 @@ const config = {
 
 var nms = new NodeMediaServer(config)
 nms.run();
-
 ```
 
-# Todo 
-- [x] 支持录制为MP4回放
-- [x] 支持实时转码
-- [ ] 支持多核模式
-- [x] 支持低延迟HLS/DASH
-- [x] 支持服务器和流媒体信息统计
-- [ ] 服务器和流媒体信息统计的前端样式
-- [x] on_connect/on_publish/on_play/on_done 事件回调
-- [ ] 多分辨率转码
-- [ ] 硬件加速转码
-- [X] RTMP 中继
-- [ ] 管理面板
+### 多核模式
+```bash
+mkdir nms
+cd nms
+npm install node-media-server
+```
+
+```js
+const { NodeMediaCluster } = require('node-media-server');
+const numCPUs = require('os').cpus().length;
+const config = {
+  rtmp: {
+    port: 1935,
+    chunk_size: 60000,
+    gop_cache: true,
+    ping: 60,
+    ping_timeout: 30
+  },
+  http: {
+    port: 8000,
+    allow_origin: '*'
+  },
+  cluster: {
+    num: numCPUs
+  }
+};
+
+var nmcs = new NodeMediaCluster(config)
+nmcs.run();
+```
 
 # 直播发布
 ## 使用 FFmpeg 推流
@@ -237,7 +291,7 @@ openssl x509 -req -in certrequest.csr -signkey privatekey.pem -out certificate.p
 
 ## 配置 https支持
 ```js
-const NodeMediaServer = require('node-media-server');
+const { NodeMediaServer } = require('node-media-server');
 
 const config = {
   rtmp: {
@@ -269,7 +323,23 @@ wss://localhost:8443/live/STREAM_NAME.flv
 ```
 >Web浏览器播放自签名的证书需先添加信任才能访问
 
-# 服务器信息统计
+# API
+## 保护API
+```
+const config = {
+ .......
+   auth: {
+    api : true,
+    api_user: 'admin',
+    api_pass: 'nms2018',
+  },
+ 
+ ......
+}
+```
+>基于Basic auth提供验证，请注意修改密码，默认并未开启。
+
+## 服务器信息统计
 http://localhost:8000/api/server
 
 ```json
@@ -314,7 +384,7 @@ http://localhost:8000/api/server
 }
 ```
 
-# 流信息统计
+## 流信息统计
 http://localhost:8000/api/streams
 
 ```json
@@ -395,7 +465,7 @@ http://localhost:8000/api/streams
 # 转 HLS/DASH 直播流
 
 ```js
-const NodeMediaServer = require('node-media-server');
+const { NodeMediaServer } = require('node-media-server');
 
 const config = {
   rtmp: {
@@ -415,7 +485,6 @@ const config = {
     tasks: [
       {
         app: 'live',
-        ac: 'aac',
         hls: true,
         hlsFlags: '[hls_time=2:hls_list_size=3:hls_flags=delete_segments]',
         dash: true,
@@ -432,7 +501,7 @@ nms.run();
 # 直播录制为MP4文件
 
 ```JS
-const NodeMediaServer = require('node-media-server');
+const { NodeMediaServer } = require('node-media-server');
 
 const config = {
   rtmp: {
@@ -452,7 +521,6 @@ const config = {
     tasks: [
       {
         app: 'vod',
-        ac: 'aac',
         mp4: true,
         mp4Flags: '[movflags=faststart]',
       }
@@ -480,6 +548,7 @@ relay: {
       mode: 'static',
       edge: 'rtsp://admin:admin888@192.168.0.149:554/ISAPI/streaming/channels/101',
       name: '0_149_101'
+      rtsp_transport : 'tcp' //['udp', 'tcp', 'udp_multicast', 'http']
     }, {
         app: 'iptv',
         mode: 'static',
@@ -561,3 +630,6 @@ https://github.com/NodeMedia/NodeMediaDevice
 
 ## FFmpeg-hw-win32
 https://github.com/illuspas/ffmpeg-hw-win32
+
+## Windows浏览器推流插件
+http://www.nodemedia.cn/products/node-media-publisher/

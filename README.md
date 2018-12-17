@@ -1,7 +1,11 @@
 # Node-Media-Server
+[![npm](https://img.shields.io/node/v/node-media-server.svg)](https://nodejs.org/en/)
 [![npm](https://img.shields.io/npm/v/node-media-server.svg)](https://npmjs.org/package/node-media-server)
 [![npm](https://img.shields.io/npm/dm/node-media-server.svg)](https://npmjs.org/package/node-media-server)
-[![npm](https://img.shields.io/npm/l/node-media-server.svg)](LICENSE)
+[![npm](https://img.shields.io/npm/l/node-media-server.svg)](LICENSE) 
+[![Join the chat at https://gitter.im/Illuspas/Node-Media-Server](https://badges.gitter.im/Illuspas/Node-Media-Server.svg)](https://gitter.im/Illuspas/Node-Media-Server?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
+![logo](https://www.nodemedia.cn/uploads/site_logo.png)
 
 A Node.js implementation of RTMP/HTTP-FLV/WS-FLV/HLS/DASH Media Server  
 [中文介绍](https://github.com/illuspas/Node-Media-Server/blob/master/README_CN.md)
@@ -10,7 +14,6 @@ A Node.js implementation of RTMP/HTTP-FLV/WS-FLV/HLS/DASH Media Server
 <a href="https://www.buymeacoffee.com/illuspas" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/white_img.png" alt="Buy Me A Coffee" style="height: 41px !important;width: 174px !important;box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;-webkit-box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;" ></a>
 
 # Features
- - High performance RTMP parser based on ES6 Generator implementation
  - Cross platform support Windows/Linux/Unix
  - Support H.264/H.265/AAC/MP3/SPEEX/NELLYMOSER
  - Support GOP cache
@@ -23,14 +26,48 @@ A Node.js implementation of RTMP/HTTP-FLV/WS-FLV/HLS/DASH Media Server
  - Support https/wss
  - Support Server Monitor
  - Support Rtsp/Rtmp relay
+ - Support multicore cluster mode
+ 
+ 
+# Todo 
+- [x] support record stream 
+- [x] support transcode
+- [x] support cluster
+- [x] support low latency hls
+- [x] server and streams status
+- [ ] server monitor frontend
+- [x] on_connect/on_publish/on_play/on_done event callback
+- [ ] multi resolution transcoding 
+- [ ] hardware acceleration transcoding. 
+- [x] rtmp/rtsp relay with ffmpeg
+- [ ] admin panel
+- [ ] zerolatency rtmp/rtsp relay without ffmpeg
+- [ ] support webrtc 
  
 # Usage 
+## git version
 ```bash
+mkdir nms
+cd nms
+git clone https://github.com/illuspas/Node-Media-Server
+npm i
+node app.js
+```
+>Run with Multicore mode 
+```
+node cluster.js
+```
+
+## npm version (recommended)
+### Singlecore mode
+```bash
+mkdir nms
+cd nms
 npm install node-media-server
 ```
 
 ```js
-const NodeMediaServer = require('node-media-server');
+const { NodeMediaServer } = require('node-media-server');
 
 const config = {
   rtmp: {
@@ -50,19 +87,36 @@ var nms = new NodeMediaServer(config)
 nms.run();
 
 ```
+### Multicore cluster mode
+```bash
+mkdir nms
+cd nms
+npm install node-media-server
+```
 
-# Todo 
-- [x] support record stream 
-- [x] support transcode
-- [ ] support cluster
-- [x] support low latency hls
-- [x] server and streams status
-- [ ] server monitor frontend
-- [x] on_connect/on_publish/on_play/on_done event callback
-- [ ] multi resolution transcoding 
-- [ ] hardware acceleration transcoding. 
-- [x] rtmp relay
-- [ ] admin panel
+```js
+const { NodeMediaCluster } = require('node-media-server');
+const numCPUs = require('os').cpus().length;
+const config = {
+  rtmp: {
+    port: 1935,
+    chunk_size: 60000,
+    gop_cache: true,
+    ping: 60,
+    ping_timeout: 30
+  },
+  http: {
+    port: 8000,
+    allow_origin: '*'
+  },
+  cluster: {
+    num: numCPUs
+  }
+};
+
+var nmcs = new NodeMediaCluster(config)
+nmcs.run();
+```
 
 # Publishing live streams
 ## From FFmpeg
@@ -147,6 +201,43 @@ http://localhost:8000/live/STREAM_NAME/index.mpd
         flvPlayer.play();
     }
 </script>
+```
+
+# Logging
+## Modify the logging type
+It is now possible to modify the logging type which determines which console outputs are shown.
+
+There are a total of 4 possible options:
+- 0 - Don't log anything
+- 1 - Log errors
+- 2 - Log errors and generic info
+- 3 - Log everything (debug)
+
+Modifying the logging type is easy - just add a new value `logType` in the config and set it to a value between 0 and 4.
+By default, this is set to show errors and generic info internally (setting 2).
+
+```js
+const {NodeMediaServer} = require('node-media-server');
+
+const config = {
+  logType: 3,
+
+  rtmp: {
+    port: 1935,
+    chunk_size: 60000,
+    gop_cache: true,
+    ping: 60,
+    ping_timeout: 30
+  },
+  http: {
+    port: 8000,
+    allow_origin: '*'
+  }
+};
+
+var nms = new NodeMediaServer(config)
+nms.run();
+
 ```
 
 # Authentication
@@ -253,7 +344,7 @@ openssl x509 -req -in certrequest.csr -signkey privatekey.pem -out certificate.p
 
 ## Config https
 ```js
-const NodeMediaServer = require('node-media-server');
+const {NodeMediaServer} = require('node-media-server');
 
 const config = {
   rtmp: {
@@ -285,7 +376,24 @@ wss://localhost:8443/live/STREAM_NAME.flv
 ```
 >In the browser environment, Self-signed certificates need to be added with trust before they can be accessed.
 
-# Server stats
+# API 
+## Protected API 
+```
+const config = {
+ .......
+   auth: {
+    api : true,
+    api_user: 'admin',
+    api_pass: 'nms2018',
+  },
+ 
+ ......
+}
+```
+>Based on the basic auth，Please change your password.
+>The default is not turned on
+
+## Server stats
 http://localhost:8000/api/server
 
 ```json
@@ -330,7 +438,7 @@ http://localhost:8000/api/server
 }
 ```
 
-# Streams stats
+## Streams stats
 http://localhost:8000/api/streams
 
 ```json
@@ -409,7 +517,7 @@ http://localhost:8000/api/streams
 
 # Remux to HLS/DASH live stream
 ```js
-const NodeMediaServer = require('node-media-server');
+const {NodeMediaServer} = require('node-media-server');
 
 const config = {
   rtmp: {
@@ -429,7 +537,6 @@ const config = {
     tasks: [
       {
         app: 'live',
-        ac: 'aac',
         hls: true,
         hlsFlags: '[hls_time=2:hls_list_size=3:hls_flags=delete_segments]',
         dash: true,
@@ -445,7 +552,7 @@ nms.run();
 
 # Record to MP4
 ```JS
-const NodeMediaServer = require('node-media-server');
+const {NodeMediaServer} = require('node-media-server');
 
 const config = {
   rtmp: {
@@ -465,7 +572,6 @@ const config = {
     tasks: [
       {
         app: 'vod',
-        ac: 'aac',
         mp4: true,
         mp4Flags: '[movflags=faststart]',
       }
@@ -492,7 +598,8 @@ relay: {
       app: 'cctv',
       mode: 'static',
       edge: 'rtsp://admin:admin888@192.168.0.149:554/ISAPI/streaming/channels/101',
-      name: '0_149_101'
+      name: '0_149_101',
+      rtsp_transport : 'tcp' //['udp', 'tcp', 'udp_multicast', 'http']
     }, {
         app: 'iptv',
         mode: 'static',
@@ -543,22 +650,11 @@ relay: {
 }
 ```
 
-# Thanks
-RTSP, RTMP, and HTTP server implementation in Node.js  
-https://github.com/iizukanao/node-rtsp-rtmp-server
-
-Node.JS module that provides an API for encoding and decoding of AMF0 and AMF3 protocols  
-https://github.com/delian/node-amfutils
-
 # Publisher and Player App/SDK
 
 ## Android Livestream App
-https://play.google.com/store/apps/details?id=cn.nodemedia.qlive
-
-http://www.nodemedia.cn/uploads/qlive-release.apk
-
-## iOS Livestream App
-https://itunes.apple.com/WebObjects/MZStore.woa/wa/viewSoftware?id=1321792616&mt=8
+https://play.google.com/store/apps/details?id=cn.nodemedia.qlive  
+http://www.nodemedia.cn/uploads/qlive-release.apk  
 
 ## Android SDK
 https://github.com/NodeMedia/NodeMediaClient-Android
@@ -569,11 +665,21 @@ https://github.com/NodeMedia/NodeMediaClient-iOS
 ## React-Native SDK
 https://github.com/NodeMedia/react-native-nodemediaclient
 
-## Flash Publisher
-https://github.com/NodeMedia/NodeMediaClient-Web
-
-## Raspberry pi Publisher
-https://github.com/NodeMedia/NodeMediaDevice
-
 ## FFmpeg-hw-win32
 https://github.com/illuspas/ffmpeg-hw-win32
+
+## Windows browser plugin(ActiveX/NPAPI)
+* H.264/H.265+AAC rtmp publisher
+* Camera/Desktop + Microphone capture
+* Nvidia/AMD/Intel Hardware acceleration Encoder/Decoder
+* Ultra low latency rtmp/rtsp/http live player
+* Only 6MB installation package
+
+http://www.nodemedia.cn/products/node-media-client/win/
+
+# Thanks
+* Javier Gomez javiergomezmora@***.com
+* trustfarm
+* Anonymous
+* leeoxiang leeoxiang@***.com
+* Aaron Turner (@torch2424) torch2424@***.com
